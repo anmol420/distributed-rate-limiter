@@ -1,0 +1,14 @@
+services:
+  redis:
+    image: redis:latest
+    container_name: redis_rate_limiter
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --user admin on ">password" ~* "&*" +@all
+    restart: no
+
+volumes:
+  redis_data:
+    driver: local
