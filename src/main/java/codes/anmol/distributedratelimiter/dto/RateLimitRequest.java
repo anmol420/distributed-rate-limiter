@@ -1,4 +1,4 @@
-package codes.anmol.distributedratelimiter.dtos;
+package codes.anmol.distributedratelimiter.dto;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
