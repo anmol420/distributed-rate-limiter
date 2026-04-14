@@ -2,12 +2,10 @@ package codes.anmol.distributedratelimiter.service.impl;
 
 import codes.anmol.distributedratelimiter.service.RateLimiter;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
 
-@Service("fixedWindowRateLimiter")
 public class FixedWindowRateLimiter implements RateLimiter {
 
     private final RedisTemplate<String, Long> redisTemplate;

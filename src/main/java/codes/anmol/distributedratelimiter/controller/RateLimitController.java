@@ -10,17 +10,37 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping(path="/api/v1/rateLimit")
 public class RateLimitController {
 
     private final RateLimiter fixedWindowRateLimiter;
+    private final RateLimiter tokenBucketRateLimiter;
+    private final RateLimiter slidingWindowRateLimiter;
 
     public RateLimitController(
             @Qualifier("fixedWindowRateLimiter")
-            RateLimiter rateLimiter
+            RateLimiter fixedWindowRateLimiter,
+
+            @Qualifier("tokenBucketRateLimiter")
+            RateLimiter tokenBucketRateLimiter,
+
+            @Qualifier("slidingWindowRateLimiter")
+            RateLimiter slidingWindowRateLimiter
     ) {
-        this.fixedWindowRateLimiter = rateLimiter;
+        this.fixedWindowRateLimiter = fixedWindowRateLimiter;
+        this.tokenBucketRateLimiter = tokenBucketRateLimiter;
+        this.slidingWindowRateLimiter = slidingWindowRateLimiter;
+    }
+
+    private RateLimiter resolveAlgo(String algorithm) {
+        return switch (algorithm) {
+            case "tokenBucket" -> tokenBucketRateLimiter;
+            case "slidingWindow" -> slidingWindowRateLimiter;
+            default -> fixedWindowRateLimiter;
+        };
     }
 
     @PostMapping("/check")
@@ -29,23 +49,17 @@ public class RateLimitController {
             @RequestBody
             RateLimitRequest request
     ) {
-        boolean allowed = fixedWindowRateLimiter.isAllowed(
+        RateLimiter limiter = resolveAlgo(request.getAlgorithm());
+        boolean allowed = limiter.isAllowed(
                 request.getKey(),
                 request.getLimit(),
                 request.getWindowSeconds()
         );
-        long remaining = fixedWindowRateLimiter.getRemaining(
+        long remaining = limiter.getRemaining(
                 request.getKey(),
                 request.getLimit(),
                 request.getWindowSeconds()
         );
-        RateLimitResponse response = RateLimitResponse.builder()
-                .allowed(allowed)
-                .remaining(remaining)
-                .limit(request.getLimit())
-                .windowSeconds(request.getWindowSeconds())
-                .key(request.getKey())
-                .build();
         if (!allowed) {
             throw new RateLimitExceedException(
                     request.getKey(),
@@ -53,10 +67,18 @@ public class RateLimitController {
                     request.getWindowSeconds()
             );
         }
+        RateLimitResponse response = RateLimitResponse.builder()
+                .allowed(true)
+                .remaining(remaining)
+                .limit(request.getLimit())
+                .windowSeconds(request.getWindowSeconds())
+                .key(request.getKey())
+                .build();
         HttpHeaders headers = new HttpHeaders();
         headers.add("X-RateLimit-Limit", String.valueOf(request.getLimit()));
         headers.add("X-RateLimit-Remaining", String.valueOf(remaining));
         headers.add("X-RateLimit-Window", String.valueOf(request.getWindowSeconds()));
+        headers.add("X-RateLimit-Algorithm", request.getAlgorithm());
 
         return ResponseEntity.ok().headers(headers).body(response);
     }
@@ -70,9 +92,13 @@ public class RateLimitController {
             int limit,
 
             @RequestParam
-            int windowSeconds
+            int windowSeconds,
+
+            @RequestParam(defaultValue = "fixedWindow")
+            String algorithm
     ) {
-        long remaining = fixedWindowRateLimiter.getRemaining(key, limit, windowSeconds);
+        RateLimiter limiter = resolveAlgo(algorithm);
+        long remaining = limiter.getRemaining(key, limit, windowSeconds);
         RateLimitResponse response = RateLimitResponse.builder()
                 .allowed(remaining>0)
                 .remaining(remaining)
@@ -82,5 +108,14 @@ public class RateLimitController {
                 .build();
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/algorithms")
+    public ResponseEntity<Map<String, String>> listAlgorithms() {
+        return ResponseEntity.ok(Map.of(
+                "0", "fixedWindow",
+                "1", "tokenBucket",
+                "2", "slidingWindow"
+        ));
     }
 }
