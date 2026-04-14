@@ -1,4 +1,4 @@
-package codes.anmol.distributedratelimiter;
+package codes.anmol.distributedratelimiter.service;
 
 import codes.anmol.distributedratelimiter.service.impl.FixedWindowRateLimiter;
 import org.junit.jupiter.api.BeforeEach;
