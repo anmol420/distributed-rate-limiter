@@ -21,11 +21,13 @@ public class GlobalExceptionHandler {
         body.put("key", ex.getKey());
         body.put("limit", ex.getLimit());
         body.put("windowSeconds", ex.getWindowSeconds());
+        body.put("retryAfterSeconds", ex.getWindowSeconds());
         body.put("timestamp", Instant.now().toString());
 
         return ResponseEntity
                 .status(HttpStatus.TOO_MANY_REQUESTS)
                 .header("Retry-After", String.valueOf(ex.getWindowSeconds()))
+                .header("X-RateLimit-Limit", String.valueOf(ex.getLimit()))
                 .body(body);
     }
 
@@ -43,6 +45,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .badRequest()
                 .body(body);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgException(IllegalArgumentException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("error", ex.getMessage());
+        body.put("timestamp", Instant.now().toString());
+        return ResponseEntity.badRequest().body(body);
     }
 
     @ExceptionHandler(Exception.class)

@@ -1,5 +1,6 @@
 package codes.anmol.distributedratelimiter.controller;
 
+import codes.anmol.distributedratelimiter.annotation.RateLimit;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ public class HealthController {
         this.redisTemplate = redisTemplate;
     }
 
+    @RateLimit(limit = 10, windowSeconds = 50, algorithm = "tokenBucket")
     @GetMapping("/health")
     public ResponseEntity<Map<String, String>> health() {
         String redis;
