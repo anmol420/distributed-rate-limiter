@@ -1,5 +1,6 @@
 package codes.anmol.distributedratelimiter.controller;
 
+import codes.anmol.distributedratelimiter.dto.PagedResponse;
 import codes.anmol.distributedratelimiter.dto.RateLimitConfigRequest;
 import codes.anmol.distributedratelimiter.dto.RateLimitConfigResponse;
 import codes.anmol.distributedratelimiter.model.RateLimitConfigEntity;
@@ -36,11 +37,21 @@ public class RateLimitConfigController {
     }
 
     @GetMapping
-    public ResponseEntity<List<RateLimitConfigResponse>> listAll() {
-        List<RateLimitConfigResponse> configResponses = configService.findAll()
-                .stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+    public ResponseEntity<PagedResponse<RateLimitConfigResponse>> listAll(
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @RequestParam(defaultValue = "100")
+            int size,
+
+            @RequestParam(required = false)
+            String algorithm,
+
+            @RequestParam(required = false)
+            Boolean activeOnly
+    ) {
+        size = Math.clamp(size, 1, 100);
+        PagedResponse<RateLimitConfigResponse> configResponses = configService.findPaged(page, size, algorithm, activeOnly);
         return ResponseEntity.ok(configResponses);
     }
 
@@ -86,6 +97,19 @@ public class RateLimitConfigController {
     ) {
         RateLimitConfigEntity toggle = configService.toggleActive(identifier);
         return ResponseEntity.ok(toResponse(toggle));
+    }
+
+    @DeleteMapping("/bulk")
+    public ResponseEntity<Map<String, Object>> deleteBulk(
+            @RequestParam
+            String algorithm
+    ) {
+        int count = configService.deleteByAlgorithm(algorithm);
+        return ResponseEntity.ok(Map.of(
+                "message", "Bulk delete complete",
+                "algorithm", algorithm,
+                "deletedCount", count
+        ));
     }
 
     private RateLimitConfigEntity toEntity(RateLimitConfigRequest request) {

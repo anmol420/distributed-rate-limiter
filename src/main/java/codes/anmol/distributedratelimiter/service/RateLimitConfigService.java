@@ -1,5 +1,7 @@
 package codes.anmol.distributedratelimiter.service;
 
+import codes.anmol.distributedratelimiter.dto.PagedResponse;
+import codes.anmol.distributedratelimiter.dto.RateLimitConfigResponse;
 import codes.anmol.distributedratelimiter.model.RateLimitConfigEntity;
 import codes.anmol.distributedratelimiter.repository.RateLimitConfigRepository;
 import org.springframework.stereotype.Service;
@@ -51,6 +53,43 @@ public class RateLimitConfigService {
         return repository.findAll();
     }
 
+    public PagedResponse<RateLimitConfigResponse> findPaged(int page, int size, String algorithm, Boolean activeOnly) {
+        List<RateLimitConfigEntity> allResponse = repository.findAll();
+        if (algorithm != null && !algorithm.isBlank()) {
+            allResponse = allResponse.stream()
+                    .filter(e -> algorithm.equalsIgnoreCase(e.getAlgorithm()))
+                    .toList();
+        }
+        if(activeOnly != null) {
+            boolean active = activeOnly;
+            allResponse = allResponse.stream()
+                    .filter(e -> e.isActive() == active)
+                    .toList();
+        }
+        long totalElements = allResponse.size();
+        int totalPages = (int) Math.ceil((double) totalElements/size);
+        int fromIndex = page*size;
+        int toIndex = Math.min(fromIndex+size, (int) totalElements);
+        List<RateLimitConfigResponse> pageContent;
+        if (fromIndex >= totalElements) {
+            pageContent = List.of();
+        } else {
+            pageContent = allResponse.subList(fromIndex, toIndex)
+                    .stream()
+                    .map(this::toResponse)
+                    .toList();
+        }
+        return PagedResponse.<RateLimitConfigResponse>builder()
+                .content(pageContent)
+                .page(page)
+                .size(size)
+                .totalElements(totalElements)
+                .totalPages(totalPages)
+                .first(page == 0)
+                .last(page >= totalPages-1)
+                .build();
+    }
+
     public RateLimitConfigEntity toggleActive(String identifier) {
         RateLimitConfigEntity existingEntity = repository.findByIdentifier(identifier)
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -59,5 +98,25 @@ public class RateLimitConfigService {
         existingEntity.setActive(!existingEntity.isActive());
         existingEntity.setUpdatedAt(Instant.now());
         return repository.save(existingEntity);
+    }
+
+    public int deleteByAlgorithm(String algorithm) {
+        List<RateLimitConfigEntity> matching = repository.findAll().stream()
+                .filter(e -> algorithm.equalsIgnoreCase(e.getAlgorithm()))
+                .toList();
+        matching.forEach(e -> repository.deleteByIdentifier(e.getIdentifier()));
+        return matching.size();
+    }
+
+    private RateLimitConfigResponse toResponse(RateLimitConfigEntity entity) {
+        return RateLimitConfigResponse.builder()
+                .identifier(entity.getIdentifier())
+                .limit(entity.getLimit())
+                .windowSeconds(entity.getWindowSeconds())
+                .algorithm(entity.getAlgorithm())
+                .active(entity.isActive())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }
