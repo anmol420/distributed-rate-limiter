@@ -27,7 +27,7 @@ public class RateLimitAspectTest {
     }
 
     @Test
-    @DisplayName("Response inlcudes X-RateLimit headers")
+    @DisplayName("Response includes X-RateLimit headers")
     void responseIncludesRateLimitHeaders() throws Exception {
         mockMvc.perform(get("/api/v1/health"))
                 .andExpect(status().isOk())
