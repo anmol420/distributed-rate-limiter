@@ -2,6 +2,7 @@ package codes.anmol.distributedratelimiter.aspect;
 
 import codes.anmol.distributedratelimiter.annotation.RateLimit;
 import codes.anmol.distributedratelimiter.exception.RateLimitExceedException;
+import codes.anmol.distributedratelimiter.metrics.MetricsService;
 import codes.anmol.distributedratelimiter.service.RateLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,6 +25,7 @@ public class RateLimitAspect {
     private final RateLimiter fixedWindowRateLimiter;
     private final RateLimiter tokenBucketRateLimiter;
     private final RateLimiter slidingWindowRateLimiter;
+    private final MetricsService metricsService;
 
     public RateLimitAspect(
             @Qualifier("fixedWindowRateLimiter")
@@ -33,11 +35,14 @@ public class RateLimitAspect {
             RateLimiter tokenBucketRateLimiter,
 
             @Qualifier("slidingWindowRateLimiter")
-            RateLimiter slidingWindowRateLimiter
+            RateLimiter slidingWindowRateLimiter,
+
+            MetricsService metricsService
     ) {
         this.fixedWindowRateLimiter = fixedWindowRateLimiter;
         this.tokenBucketRateLimiter = tokenBucketRateLimiter;
         this.slidingWindowRateLimiter = slidingWindowRateLimiter;
+        this.metricsService = metricsService;
     }
 
     @Around("@annotation(codes.anmol.distributedratelimiter.annotation.RateLimit)")
@@ -54,7 +59,12 @@ public class RateLimitAspect {
         HttpServletRequest httpRequest = getCurrentHttpRequest();
         String rateLimitKey = buildRateLimitKey(httpRequest, keyBy, method);
         RateLimiter limiter = resolveAlgo(algorithm);
+
+        long start = System.currentTimeMillis();
         boolean allowed = limiter.isAllowed(rateLimitKey, limit, windowSeconds);
+        long latencyMs = System.currentTimeMillis() - start;
+
+        metricsService.record(algorithm, allowed, latencyMs, rateLimitKey);
 
         addRateLimitHeaders(limiter, rateLimitKey, limit, windowSeconds, algorithm);
 
