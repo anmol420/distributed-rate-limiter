@@ -5,6 +5,8 @@ import codes.anmol.distributedratelimiter.dto.RateLimitRequest;
 import codes.anmol.distributedratelimiter.dto.RateLimitResponse;
 import codes.anmol.distributedratelimiter.exception.RateLimitExceedException;
 import codes.anmol.distributedratelimiter.service.RateLimiter;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +15,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/benchmark")
+@Tag(name = "Benchmarking", description = "JMeter benchmark endpoints — do not use in production")
 public class BenchmarkController {
 
     private final RateLimiter fixedWindowRateLimiter;
@@ -34,11 +37,13 @@ public class BenchmarkController {
         this.slidingWindowRateLimiter = slidingWindowRateLimiter;
     }
 
+    @Operation(summary = "Baseline ping — no Redis, measures Spring overhead only")
     @GetMapping("/ping")
     public ResponseEntity<Map<String, String>> ping() {
         return ResponseEntity.ok(Map.of("status", "pong"));
     }
 
+    @Operation(summary = "Fixed Window benchmark endpoint — 600k req/min limit")
     @RateLimit(limit = 6000, windowSeconds = 60, algorithm = "fixedWindow", keyBy = "IP")
     @GetMapping("/fixed-window")
     public ResponseEntity<Map<String, Object>> fixedWindowBenchmark() {
@@ -49,6 +54,7 @@ public class BenchmarkController {
         ));
     }
 
+    @Operation(summary = "Token Bucket benchmark endpoint — 600k req/min limit")
     @RateLimit(limit = 6000, windowSeconds = 60, algorithm = "tokenBucket", keyBy = "IP")
     @GetMapping("/token-bucket")
     public ResponseEntity<Map<String, Object>> tokenBucketBenchmark() {
@@ -59,6 +65,7 @@ public class BenchmarkController {
         ));
     }
 
+    @Operation(summary = "Sliding Window benchmark endpoint — 600k req/min limit")
     @RateLimit(limit = 6000, windowSeconds = 60, algorithm = "slidingWindow", keyBy = "IP")
     @GetMapping("/sliding-window")
     public ResponseEntity<Map<String, Object>> slidingWindowBenchmark() {
@@ -69,6 +76,10 @@ public class BenchmarkController {
         ));
     }
 
+    @Operation(
+            summary     = "Concurrent test — rate limits by userId query param",
+            description = "Use userId=shared-user in JMeter to force all 500 threads to hit the same key."
+    )
     @GetMapping("/concurrent-test")
     public ResponseEntity<Map<String, Object>> concurrentTest(
             @RequestParam(defaultValue = "benchmark-user")
@@ -92,6 +103,7 @@ public class BenchmarkController {
         ));
     }
 
+    @Operation(summary = "Programmatic check — configurable algorithm and key")
     @PostMapping("/check")
     public ResponseEntity<RateLimitResponse> check(
             @RequestBody
