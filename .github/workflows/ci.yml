@@ -41,12 +41,12 @@ jobs:
             ${{ runner.os }}-maven-
 
       - name: Configure Redis ACL
-        run: |
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y redis-tools
           redis-cli ACL SETUSER ${{ secrets.REDIS_USERNAME }} on \
-            ">${{ secrets.REDIS_PASSWORD }}" "~*" "&*" "+@all"
-          # Disable the default unauthenticated user so only admin can connect
+          ">${{ secrets.REDIS_PASSWORD }}" "~*" "&*" "+@all"
           redis-cli ACL SETUSER default off
-          # Verify the user was created successfully
           redis-cli -u redis://${{ secrets.REDIS_USERNAME }}:${{ secrets.REDIS_PASSWORD }}@localhost:6379 PING
 
       - name: Run tests
