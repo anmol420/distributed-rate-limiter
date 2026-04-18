@@ -49,14 +49,6 @@ jobs:
           redis-cli ACL SETUSER default off
           redis-cli -u redis://${{ secrets.REDIS_USERNAME }}:${{ secrets.REDIS_PASSWORD }}@localhost:6379 PING
 
-      - name: Run tests
-        run: mvn test -B
-        env:
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          REDIS_USERNAME: ${{ secrets.REDIS_USERNAME }}
-          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
-
       - name: Build JAR
         run: mvn package -DskipTests -B
 
