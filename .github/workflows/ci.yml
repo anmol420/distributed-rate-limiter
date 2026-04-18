@@ -1,0 +1,97 @@
+name: distributed rate limiter pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    name: Build, Test, Package
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: 'temurin'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Configure Redis ACL
+        run: |
+          redis-cli ACL SETUSER ${{ secrets.REDIS_USERNAME }} on \
+            ">${{ secrets.REDIS_PASSWORD }}" "~*" "&*" "+@all"
+          # Disable the default unauthenticated user so only admin can connect
+          redis-cli ACL SETUSER default off
+          # Verify the user was created successfully
+          redis-cli -u redis://${{ secrets.REDIS_USERNAME }}:${{ secrets.REDIS_PASSWORD }}@localhost:6379 PING
+
+      - name: Run tests
+        run: mvn test -B
+        env:
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          REDIS_USERNAME: ${{ secrets.REDIS_USERNAME }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+
+      - name: Build JAR
+        run: mvn package -DskipTests -B
+
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports
+          path: target/surefire-reports/
+          retention-days: 7
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: distributed-rate-limiter-jar
+          path: target/distributed-rate-limiter-0.0.1-SNAPSHOT.jar
+          retention-days: 7
+
+  docker-build:
+    name: Verify Docker Build
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: rate-limiter:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
